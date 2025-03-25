@@ -11,6 +11,7 @@ from tqdm import tqdm
 from src.prc import Detect, Decode
 import src.pseudogaussians as prc_gaussians
 from inversion import stable_diffusion_pipe, exact_inversion
+from src.baseline.gs_watermark import Gaussian_Shading_chacha
 
 parser = argparse.ArgumentParser('Args')
 parser.add_argument('--test_num', type=int, default=10)
@@ -26,8 +27,8 @@ parser.add_argument('--test_path', type=str, default='original_images')
 args = parser.parse_args()
 print(args)
 
-hf_cache_dir = '/home/xuandong/mnt/hf_models'
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+hf_cache_dir = 'hf_models'
+device = 'cuda:1' if torch.cuda.is_available() else 'cpu'
 n = 4 * 64 * 64  # the length of a PRC codeword
 method = args.method
 test_num = args.test_num
@@ -39,7 +40,10 @@ prc_t = args.prc_t
 exp_id = f'{method}_num_{test_num}_steps_{args.inf_steps}_fpr_{fpr}_nowm_{nowm}'
 
 with open(f'keys/{exp_id}.pkl', 'rb') as f:
-    encoding_key, decoding_key = pickle.load(f)
+    if method == 'gs':
+        watermark_m, key, nonce, watermark = pickle.load(f)
+    elif method == 'prc':
+        encoding_key, decoding_key = pickle.load(f)
 
 pipe = stable_diffusion_pipe(solver_order=1, model_id=model_id, cache_dir=hf_cache_dir)
 pipe.set_progress_bar_config(disable=True)
@@ -55,15 +59,25 @@ for i in tqdm(range(test_num)):
                                        inv_order=cur_inv_order,
                                        pipe=pipe
                                        )
-    reversed_prc = prc_gaussians.recover_posteriors(reversed_latents.to(torch.float64).flatten().cpu(), variances=float(var)).flatten().cpu()
-    detection_result = Detect(decoding_key, reversed_prc)
-    decoding_result = (Decode(decoding_key, reversed_prc) is not None)
-    combined_result = detection_result or decoding_result
-    combined_results.append(combined_result)
-    print(f'{i:03d}: Detection: {detection_result}; Decoding: {decoding_result}; Combined: {combined_result}')
+    if method == 'prc':
+        reversed_prc = prc_gaussians.recover_posteriors(reversed_latents.to(torch.float64).flatten().cpu(), variances=float(var)).flatten().cpu()
+        detection_result = Detect(decoding_key, reversed_prc)
+        decoding_result = (Decode(decoding_key, reversed_prc) is not None)
+        combined_result = detection_result or decoding_result
+        combined_results.append(combined_result)
+        print(f'{i:03d}: Detection: {detection_result}; Decoding: {decoding_result}; Combined: {combined_result}')
+    elif method == 'gs':
+        gs_watermark = Gaussian_Shading_chacha(ch_factor=1, hw_factor=8, fpr=fpr, user_number=10000)
+        
+        gs_watermark.nonce=nonce
+        gs_watermark.key=key
+        gs_watermark.watermark=watermark
+        
+        acc_metric = gs_watermark.eval_watermark(reversed_latents)
+        combined_results.append(combined_result)
 
-with open('decoded.txt', 'w') as f:
+with open(f'decoded_{exp_id}.txt', 'w') as f:
     for result in combined_results:
         f.write(f'{result}\n')
 
-print(f'Decoded results saved to decoded.txt')
+print(f'Decoded results saved to '+f'decoded_{exp_id}.txt')

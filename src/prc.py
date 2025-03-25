@@ -128,7 +128,7 @@ def Detect(decoding_key, posteriors, false_positive_rate=None):
     else:
         fpr = false_positive_rate_key
 
-    posteriors = (1 - 2 * noise_rate) * (1 - 2 * np.array(one_time_pad, dtype=float)) * posteriors.numpy(force=True)
+    posteriors = (1 - 2 * noise_rate) * (1 - 2 * np.array(one_time_pad, dtype=float)) * posteriors.numpy()
 
     r = parity_check_matrix.shape[0]
     Pi = np.prod(posteriors[parity_check_matrix.indices.reshape(r, t)], axis=1)
@@ -153,7 +153,7 @@ def Decode(decoding_key, posteriors, print_progress=False, max_bp_iter=None):
     if max_bp_iter is None:
         max_bp_iter = max_bp_iter_key
 
-    posteriors = (1 - 2 * noise_rate) * (1 - 2 * np.array(one_time_pad, dtype=float)) * posteriors.numpy(force=True)
+    posteriors = (1 - 2 * noise_rate) * (1 - 2 * np.array(one_time_pad, dtype=float)) * posteriors.numpy()
     channel_probs = (1 - np.abs(posteriors)) / 2
     x_recovered = (1 - np.sign(posteriors)) // 2
 

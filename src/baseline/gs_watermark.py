@@ -48,10 +48,10 @@ class Gaussian_Shading_chacha:
             dec_mes = int(dec_mes)
             z[i] = truncnorm.rvs(ppf[dec_mes], ppf[dec_mes + 1])
         z = torch.from_numpy(z).reshape(1, 4, 64, 64).half()
-        return z.cuda()
+        return z.cuda('cuda:1')
 
     def create_watermark_and_return_w(self):
-        self.watermark = torch.randint(0, 2, [1, 4 // self.ch, 64 // self.hw, 64 // self.hw]).cuda()
+        self.watermark = torch.randint(0, 2, [1, 4 // self.ch, 64 // self.hw, 64 // self.hw]).cuda('cuda:1')
         sd = self.watermark.repeat(1, self.ch, self.hw, self.hw)
         m = self.stream_key_encrypt(sd.flatten().cpu().numpy())
         # w = self.truncSampling(m)
@@ -63,7 +63,7 @@ class Gaussian_Shading_chacha:
         sd_byte = cipher.decrypt(np.packbits(reversed_m).tobytes())
         sd_bit = np.unpackbits(np.frombuffer(sd_byte, dtype=np.uint8))
         sd_tensor = torch.from_numpy(sd_bit).reshape(1, 4, 64, 64).to(torch.uint8)
-        return sd_tensor.cuda()
+        return sd_tensor.cuda('cuda:1')
 
     def diffusion_inverse(self, watermark_r):
         ch_stride = 4 // self.ch
@@ -81,7 +81,7 @@ class Gaussian_Shading_chacha:
     def eval_watermark(self, reversed_w):
         reversed_m = (reversed_w > 0).int()
         reversed_sd = self.stream_key_decrypt(reversed_m.flatten().cpu().numpy())
-        reversed_watermark = self.diffusion_inverse(reversed_sd)
+        reversed_watermark = self.diffusion_inverse(reversed_sd).to('cuda:1')
         correct = (reversed_watermark == self.watermark).float().mean().item()
         if correct >= self.tau_onebit:
             self.tp_onebit_count = self.tp_onebit_count + 1
@@ -170,7 +170,7 @@ class Gaussian_Shading:
         reversed_m = (reversed_m > 0).int()
         reversed_sd = (reversed_m + self.key) % 2
         reversed_watermark = self.diffusion_inverse(reversed_sd)
-        correct = (reversed_watermark == self.watermark).float().mean().item()
+        correct = (reversed_watermark.to('cuda:1') == self.watermark.to('cuda:1')).float().mean().item()
         if correct >= self.tau_onebit:
             self.tp_onebit_count = self.tp_onebit_count + 1
         if correct >= self.tau_bits:

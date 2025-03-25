@@ -11,7 +11,7 @@ def stable_diffusion_pipe(
         cache_dir='/home/xuandong/mnt/hf_models',
 ):
     # load stable diffusion pipeline
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'cuda:1' if torch.cuda.is_available() else 'cpu'
     scheduler = DPMSolverMultistepScheduler(
         beta_end=0.012,
         beta_schedule='scaled_linear',
@@ -47,7 +47,7 @@ def generate(
         init_latents=None,
 ):
     # load stable diffusion pipeline
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'cuda:1' if torch.cuda.is_available() else 'cpu'
     if pipe is None:
         scheduler = DPMSolverMultistepScheduler(
             beta_end=0.012,
@@ -105,7 +105,7 @@ def exact_inversion(
         pipe=None,
 ):
     # load stable diffusion pipeline
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'cuda:1' if torch.cuda.is_available() else 'cpu'
     if pipe is None:
         scheduler = DPMSolverMultistepScheduler(
             beta_end=0.012,
@@ -126,7 +126,7 @@ def exact_inversion(
 
     # prompt to text embeddings
     text_embeddings_tuple = pipe.encode_prompt(
-        prompt, 'cuda', 1, guidance_scale > 1.0, None
+        prompt, 'cuda:1', 1, guidance_scale > 1.0, None
     )
     text_embeddings = torch.cat([text_embeddings_tuple[1], text_embeddings_tuple[0]])
 
